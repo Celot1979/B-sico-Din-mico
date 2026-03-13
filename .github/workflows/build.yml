@@ -1,0 +1,47 @@
+name: Build Conversor Live ISO
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm
+      options: --privileged # Necesario para live-build y montajes
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y live-build debootstrap sudo coreutils wget gcc libgl1-mesa-dev xorg-dev
+
+      - name: Install Go
+        run: |
+          wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+          tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
+
+      - name: Build Go Application
+        run: |
+          export PATH=$PATH:/usr/local/go/bin
+          go mod tidy
+          mkdir -p bin
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o bin/conversor_gui ./cmd/interfaz/main.go
+
+      - name: Build ISO
+        run: |
+          chmod +x scripts/construir_iso.sh
+          ./scripts/construir_iso.sh
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Conversor-Forense-ISO
+          path: Conversor_Forense.iso
+          if-no-files-found: error
